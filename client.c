@@ -15,6 +15,22 @@
 
 #define MAX_LENGTH 100
 
+char *rcv_post_req(int socket, char host[16], char *cmd, char *user[1], char *jwt)
+{
+	char *post_message = compute_post_request(host, cmd, "application/json", user, 1, NULL, 0, jwt);
+	send_to_server(socket, post_message);
+
+	return receive_from_server(socket);
+}
+
+char *rcv_get_req(int socket, char host[16], char *cmd, char *jwt, char *cookies[1], char *get_delete)
+{
+	char *get_message = compute_get_request(host, cmd, NULL, cookies, 1, jwt, get_delete);
+	send_to_server(socket, get_message);
+
+	return receive_from_server(socket);
+}
+
 // Functie care preia datele utilizatorului
 char *get_user_credentials()
 {
@@ -62,27 +78,32 @@ void handle_login(char *user[1], char host[16], int port, int *connected,
 		printf("You are already logged in!\n");
 	}
 	else
-	{
+	{	
 		// Primim datele utilizatorului
 		user[0] = get_user_credentials();
 		// Trimitere cerere de tip POST
 		char *response = rcv_post_req(socket, host, LOGIN, user, NULL);
+		
 		// Verificam daca am primit un raspuns de tipul "OK"
 		if (strstr(response, "OK") != NULL)
 		{
 			*connected = 1;
 			printf("SUCCESSFULLY LOGGED IN!\n");
 			// Get the cookies
-			char *cookie_tok = strstr(response, "Set-Cookie");
+			char *cookie_tok = strstr(response, "Set-Cookie:");
+
+			strtok(cookie_tok, ";");
 			cookie_tok += 12;
-			memset(cookie, 0, MAX_LENGTH);
+			//memset(cookie, 0, MAX_LENGTH);
 			strcpy(cookie, cookie_tok);
-			cookie[strlen(cookie) - 2] = '\0';
+			//cookie[strlen(cookie) - 2] = '\0';
 			cookies[0] = cookie;
 		}
 		else
 		{
 			printf("Wrong credentials! Please try again.\n");
+			*connected = 0;
+			in_library = 0;
 		}
 	}
 }
@@ -117,6 +138,7 @@ void handle_enter_library(char host[16], int port, int *connected,
 	{
 		*in_library = 1;
 		// retinem jwt-ul care ne va ajuta sa verificam accesul catre librarie
+
 		char *jwt_tok = strstr(rcv_get_req(socket, host, ACCESS, jwt, cookies, "get"), "token");
 		if (jwt_tok == NULL)
 		{
